@@ -9,8 +9,11 @@ import argparse
 import dns.resolver
 import threading
 import time
-from tempfile import mkstemp
+import logging
 import queue
+from time import sleep
+from tempfile import mkstemp
+
 
 _banner = """\033[1;33;40m
  _____           _   _____                       _
@@ -25,6 +28,9 @@ _banner = """\033[1;33;40m
 """
 
 _transparency_endpoint = "https://crt.sh/?q=%.{query}&output=json"
+_potential_hosts = []
+_resolving_hosts = {}
+
 
 def getSubjectAltNames(_potential_host):
     result = []
@@ -88,39 +94,49 @@ class dnsThread(threading.Thread):
                 print(ex)
 
 
+def getTransparencyNames(domain):
+    results = []
+    print("Checking [{domain}]".format(domain=domain))
+    r = requests.get(_transparency_endpoint.format(query=domain))
+    if r.status_code != 200:
+        print("Results not found")
+        return None
+
+    data = json.loads('[{}]'.format(r.text.replace('}{', '},{')))
+    for (key, value) in enumerate(data):
+        if value['name_value'].find("*") == 0:
+            continue
+        results.append(value['name_value'].lower())
+
+    results = list(set(results))
+    results.sort()
+    #print("Found [{count}] potential hostnames".format(count=len(results)))
+    return results
+
+
 if __name__ == "__main__":
     print(_banner)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--domain', type=str, help="Domain to check")
+    parser.add_argument('-D', '--domains', type=str, help="File containing the domains to check")
+    parser.add_argument('-i', '--iprange', type=str, help="IP range to check certificates of")
+    parser.add_argument('-o', '--output', type=str, help="Results file")
+    parser.add_argument('-t', '--delay', type=int, help="Delay between quering online services", default=3)
+    parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
+    args = parser.parse_args()
 
+    if not args.domain and not args.domains and not args.iprange:
+        print("Requires either domain, domain list or ip range")
+        exit()
 
-_potential_hosts = []
-_resolving_hosts = {}
+    if args.domain:
+        print("Checking transparency archive for potential hostnames")
+        _potential_hosts = getTransparencyNames(args.domain)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--domain', type=str, required=True, help="Domain to check")
-parser.add_argument('-o', '--output', type=str, help="Results file")
-parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
-args = parser.parse_args()
-
-print("Checking archive for potential hostnames")
-r = requests.get(_endpoint.format(query=args.domain))
-if r.status_code != 200:
-    print("Results not found")
-    exit()
-
-data = json.loads('[{}]'.format(r.text.replace('}{', '},{')))
-for (key, value) in enumerate(data):
-    _potential_hosts.append(value['name_value'].lower())
-
-_potential_hosts = list(set(_potential_hosts))
-_potential_hosts.sort()
-
-print("Found [{count}] potential hostnames".format(count=len(_potential_hosts)))
-for name in _potential_hosts:
-    print("  {host}".format(host=name))
-
-print("")
-
-_resolving_hosts = {}
+    if args.domains:
+        for domain in open(args.domains).read().split("\n"):
+            _potential_hosts = _potential_hosts + getTransparencyNames(domain)
+            sleep(args.delay)
 
 print("Checking potential hostnames for DNS A records")
 threadCount = 20
