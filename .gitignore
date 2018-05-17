@@ -1,0 +1,5 @@
+*.pyc
+*.log
+*.bak
+*_migration.py
+data/*
