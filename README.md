@@ -1,4 +1,5 @@
-```  _____           _   _____                       _
+```  
+ _____           _   _____                       _
 /  __ \         | | /  __ \                     | |
 | /  \/ ___ _ __| |_| /  \/_ __ _   _ _ __   ___| |__  _   _
 | |    / _ \ '__| __| |   | '__| | | | '_ \ / __| '_ \| | | |
@@ -6,7 +7,8 @@
  \____/\___|_|   \__|\____/_|   \__,_|_| |_|\___|_| |_|\__, |
                                                         __/ |
                                                        |___/
-Just a silly recon tool that uses data from SSL Certificates to find potential hostnames```
+Just a silly recon tool that uses data from SSL Certificates to find potential hostnames
+```
 
 ## What the?
 It just a silly python script that either retrieves SSL Certificate based data from online sources,
