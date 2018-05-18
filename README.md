@@ -17,14 +17,18 @@ If you want to use Censys.io you need to register for a API key.
 
 ## How to use it? 
 Very simply
--d to get hostnames for spesific domain
--D to get hostnames for a list of domains (just stuff it in a line delimeted text file)
--U censys.io UID (If you have one)
--S censys.io Secret (If you have one)
+-d to get hostnames for spesific domain 
+
+-D to get hostnames for a list of domains (just stuff it in a line delimeted text file)  
+
+-U censys.io UID (If you have one) 
+
+-S censys.io Secret (If you have one) 
+
 
 for the rest, im still working on those :)
 
 ## Todo:
-1.) Better documentation
-2.) Add the code to extract and parse x509 certs from ip ranges
-3.) Better output
+1. Better documentation
+2. Add the code to extract and parse x509 certs from ip ranges
+3. Better output
