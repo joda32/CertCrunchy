@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import itertools
 import requests
 import socket
 import ssl
@@ -11,6 +12,7 @@ import threading
 import time
 import re
 import queue
+import ipaddress
 from time import sleep
 from tempfile import mkstemp
 
@@ -33,42 +35,72 @@ _censys_uid = None
 _censys_secret = None
 _potential_hosts = []
 _resolving_hosts = {}
+_port = 443
+_threads = 20
 
 
 def is_valid_hostname(hostname):
     if len(hostname) > 253:
         return False
     if hostname[-1] == ".":
-        hostname = hostname[:-1] # strip exactly one dot from the right, if present
+        hostname = hostname[:-1]  # Strip exactly one dot from the right, if present
     allowed = re.compile("(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
     return all(allowed.match(x) for x in hostname.split("."))
 
-def getSubjectAltNames(_potential_host):
-    result = []
-    try:
-        socket.setdefaulttimeout(1.0)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        ssl_sock = context.wrap_socket(s, server_hostname=_potential_host)
-        ssl_sock.connect((_potential_host, args.port))
-        cert = ssl.DER_cert_to_PEM_cert(ssl_sock.getpeercert(True))
-        tmp_file = mkstemp()
-        file = open(tmp_file[1], 'w')
-        file.write(cert)
-        file.close()
-        ssl_sock.close()
-        cert = ssl._ssl._test_decode_cert(tmp_file[1])
-        for i in cert["subjectAltName"]:
-            if i[0] == "DNS":
-                if i[1].find("*") < 0:
-                    result.append(i[1])
-    except socket.gaierror:
-        result = None
-    except socket.timeout:
-        result = None
-    except ssl.SSLError:
-        result = None
-    return result
+
+class certThread(threading.Thread):
+    def __init__(self, jobqueue, resultqueue):
+        threading.Thread.__init__(self)
+        self.jobs = jobqueue
+        self.results = resultqueue
+        self.stop_received = False
+
+    def getNames(self, _potential_host, _port):
+        result = []
+        try:
+            socket.setdefaulttimeout(1.0)
+            context = ssl.create_default_context()
+            context.check_hostname = False  # Disable check for SNI host
+            conn = context.wrap_socket(socket.socket(socket.AF_INET))
+            conn.connect((_potential_host, _port))
+            cert = conn.getpeercert()
+            for i in cert["subject"]:
+                if i[0][0] == "commonName":
+                    if i[0][1].find("*") < 0:
+                        result.append(i[0][1])
+                    else:
+                        result.append(i[1][2:])
+            if "subjectAltName" in cert:
+                for i in cert["subjectAltName"]:
+                    if i[0][0] == "DNS":
+                        if i[0][1].find("*") < 0:
+                            result.append(i[0][1])
+                        else:
+                            result.append(i[0][1][2:])
+        except socket.gaierror:
+            result = None
+        except socket.timeout:
+            result = None
+        except ssl.SSLError:
+            result = None
+        return result
+
+    def stop(self):
+        self.stop_received = True
+
+    def run(self):
+        while not self.stop_received:
+            try:
+                host = self.jobs.get_nowait()
+                #print(host)
+                d = self.getNames(host, _port)
+                if d:
+                    self.results.put(d)
+                self.jobs.task_done()
+            except queue.Empty as emp:
+                pass
+            except Exception as ex:
+                print(ex)
 
 
 class dnsThread(threading.Thread):
@@ -103,6 +135,39 @@ class dnsThread(threading.Thread):
                 pass
             except Exception as ex:
                 print(ex)
+
+
+def getNamesFromIps(ip_range):
+    print("Checking potential hostnames for netblock")
+    ips = []
+    results = []
+    for i in ipaddress.ip_network(ip_range):
+        ips.append(str(i))
+    threads = []
+    q = queue.Queue()
+    for h in ips:
+        q.put(h)
+    r = queue.Queue()
+
+    for i in range(_threads):
+        worker = certThread(q, r)
+        worker.setDaemon(True)
+        worker.start()
+        threads.append(worker)
+
+    while not q.empty():
+        time.sleep(1)
+
+    for worker in threads:
+        worker.stop()
+
+    for worker in threads:
+        worker.join()
+
+    for _host in list(r.queue):
+        results.append(_host)
+    results = list(itertools.chain.from_iterable(results))
+    return list(set(results))
 
 
 def getCensysNames(domain):
@@ -166,9 +231,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--domain', type=str, help="Domain to check")
     parser.add_argument('-D', '--domains', type=str, help="File containing the domains to check")
-    parser.add_argument('-i', '--iprange', type=str, help="IP range to check certificates of")
+    parser.add_argument('-i', '--iprange', type=str, help="IP range to check certificates of eg. 10.0.0.0/24")
     parser.add_argument('-o', '--output', type=str, help="Results file")
     parser.add_argument('-t', '--delay', type=int, help="Delay between quering online services", default=3)
+    parser.add_argument('-T', '--threads', type=int, help="Number of concurrent threads", default=20)
     parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
     parser.add_argument('-U', '--uid', type=str, help="Censys.io UID")
     parser.add_argument('-S', '--secret', type=str, help="Censys.io Secret")
@@ -176,6 +242,8 @@ if __name__ == "__main__":
 
     _censys_uid = args.uid
     _censys_secret = args.secret
+    _port = args.port
+    _threads = args.threads
 
     if not args.domain and not args.domains and not args.iprange:
         print("Requires either domain, domain list or ip range")
@@ -194,8 +262,10 @@ if __name__ == "__main__":
                 _potential_hosts = _potential_hosts + getCensysNames(args.domain)
             sleep(args.delay)
 
+    if args.iprange:
+        _potential_hosts = getNamesFromIps(args.iprange)
+
     print("Checking potential hostnames for DNS A records")
-    threadCount = 20
 
     threads = []
     q = queue.Queue()
@@ -203,7 +273,7 @@ if __name__ == "__main__":
         q.put(h)
     r = queue.Queue()
 
-    for i in range(threadCount):
+    for i in range(_threads):
         worker = dnsThread(q, r)
         worker.setDaemon(True)
         worker.start()
