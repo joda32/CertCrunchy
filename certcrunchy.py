@@ -126,7 +126,7 @@ class dnsThread(threading.Thread):
         while not self.stop_received:
             try:
                 host = self.jobs.get_nowait()
-                print(host)
+                #print(host)
                 d = self.getARecIPs(host)
                 if d:
                     self.results.put({"host": host, "ips": d})
@@ -213,7 +213,7 @@ def getTransparencyNames(domain):
     r = requests.get(_transparency_endpoint.format(query=domain))
     if r.status_code != 200:
         print("Results not found")
-        return None
+        return results
 
     data = json.loads('[{}]'.format(r.text.replace('}{', '},{')))
     for (key, value) in enumerate(data):
@@ -233,6 +233,7 @@ if __name__ == "__main__":
     parser.add_argument('-D', '--domains', type=str, help="File containing the domains to check")
     parser.add_argument('-i', '--iprange', type=str, help="IP range to check certificates of eg. 10.0.0.0/24")
     parser.add_argument('-o', '--output', type=str, help="Results file")
+    parser.add_argument('-f', '--format', type=str, help="Output format [csv/json] defaut csv", default="csv")
     parser.add_argument('-t', '--delay', type=int, help="Delay between quering online services", default=3)
     parser.add_argument('-T', '--threads', type=int, help="Number of concurrent threads", default=20)
     parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
@@ -257,10 +258,11 @@ if __name__ == "__main__":
 
     if args.domains:
         for domain in open(args.domains).read().split("\n"):
-            _potential_hosts = _potential_hosts + getTransparencyNames(domain)
-            if _censys_uid and _censys_secret:
-                _potential_hosts = _potential_hosts + getCensysNames(args.domain)
-            sleep(args.delay)
+            if len(domain) > 3:
+                _potential_hosts = _potential_hosts + getTransparencyNames(domain)
+                if _censys_uid and _censys_secret:
+                    _potential_hosts = _potential_hosts + getCensysNames(domain)
+                sleep(args.delay)
 
     if args.iprange:
         _potential_hosts = getNamesFromIps(args.iprange)
@@ -291,7 +293,15 @@ if __name__ == "__main__":
     for _host in list(r.queue):
         _resolving_hosts[_host["host"]] = _host["ips"]
 
+    if args.output:
+        with open(args.output, "w") as f:
+            if args.format == "csv":
+                for _host in _resolving_hosts:
+                    f.write("{},{}\n".format(_host, ",".join(_resolving_hosts[_host])))
+            else:
+                json.dump(_resolving_hosts, f)
+            f.close()
     print("Found [{count}] resolving hostnames".format(count=len(_resolving_hosts)))
     for _host in _resolving_hosts:
-        print("  {host} => [{ips}]".format(host=_host, ips=", ".join(_resolving_hosts[_host])))
+        print("[Resolving] {host} => [{ips}]".format(host=_host, ips=", ".join(_resolving_hosts[_host])))
     print("")

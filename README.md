@@ -13,7 +13,8 @@ Just a silly recon tool that uses data from SSL Certificates to find potential h
 
 ## What the?
 It just a silly python script that either retrieves SSL Certificate based data from online sources,
-currently https://crt.sh/ and https://censys.io.
+currently https://crt.sh/ and https://censys.io or given a IP range it will attempt to extract host information
+from SSL Certificates.
 If you want to use Censys.io you need to register for a API key.
 
 ## How to use it?
@@ -30,9 +31,11 @@ Very simply
 
 -S censys.io Secret (If you have one)
 
+-o Output file name
+
+-f Output format csv or json, csv is the default
 
 for the rest, I'm still working on those :)
 
 ## Todo:
 1. Better documentation
-3. Better output
