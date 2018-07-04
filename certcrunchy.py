@@ -13,11 +13,12 @@ import time
 import re
 import queue
 import ipaddress
+import api_keys
 from time import sleep
 from tempfile import mkstemp
 
 
-_banner = """\033[1;33;40m
+_banner = """\033[1;33;49m
  _____           _   _____                       _
 /  __ \         | | /  __ \                     | |
 | /  \/ ___ _ __| |_| /  \/_ __ _   _ _ __   ___| |__  _   _
@@ -26,13 +27,14 @@ _banner = """\033[1;33;40m
  \____/\___|_|   \__|\____/_|   \__,_|_| |_|\___|_| |_|\__, |
                                                         __/ |
                                                        |___/
-    \033[1;31;40mJust a silly recon tool...\033[0;37;40m
+    \033[1;31;49mJust a silly recon tool...
+    @_w_m__\033[0;37;49m
 """
 
 _transparency_endpoint = "https://crt.sh/?q=%.{query}&output=json"
 _censys_endpoint = "https://www.censys.io/api/v1"
-_censys_uid = None
-_censys_secret = None
+_certdb_endpoint = "https://certdb.com/api?q={query}"
+_certspotter_endpoint = "https://certspotter.com/api/v0/certs?domain={query}"
 _potential_hosts = []
 _resolving_hosts = {}
 _port = 443
@@ -68,20 +70,30 @@ class certThread(threading.Thread):
                 if i[0][0] == "commonName":
                     if i[0][1].find("*") < 0:
                         result.append(i[0][1])
+                        print("[Found] {}".format(i[0][1]))
                     else:
-                        result.append(i[1][2:])
+                        result.append(i[0][1][2:])
+                        print("[Found] {}".format(i[0][1][2:]))
             if "subjectAltName" in cert:
                 for i in cert["subjectAltName"]:
                     if i[0][0] == "DNS":
                         if i[0][1].find("*") < 0:
                             result.append(i[0][1])
+                            print("[Found] {}".format(i[0][1]))
                         else:
                             result.append(i[0][1][2:])
+                            print("[Found] {}".format(i[0][1][2:]))
         except socket.gaierror:
             result = None
         except socket.timeout:
             result = None
         except ssl.SSLError:
+            result = None
+        except ConnectionResetError:
+            result = None
+        except ConnectionRefusedError:
+            result = None
+        except OSError:
             result = None
         return result
 
@@ -101,6 +113,8 @@ class certThread(threading.Thread):
                 pass
             except Exception as ex:
                 print(ex)
+                raise ex
+                
 
 
 class dnsThread(threading.Thread):
@@ -171,12 +185,13 @@ def getNamesFromIps(ip_range):
 
 
 def getCensysNames(domain):
+    print("[Censys.io] Checking [{domain}]".format(domain=domain))
     page = 1
     QUERY = "{{\"query\":\"{domain}\",\"page\":{page},\"fields\":[\"parsed.subject_dn\", \"ip\"],\"flatten\":true}}"
     hosts = []
     try:
         while 1:
-            print("getting page {page}".format(page=page))
+            #print("getting page {page}".format(page=page))
             data = QUERY.format(domain=domain, page=page)
             res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(_censys_uid, _censys_secret))
             if res.status_code != 200:
@@ -209,7 +224,7 @@ def getCensysNames(domain):
 
 def getTransparencyNames(domain):
     results = []
-    print("Checking [{domain}]".format(domain=domain))
+    print("[crt.sh] Checking [{domain}]".format(domain=domain))
     r = requests.get(_transparency_endpoint.format(query=domain))
     if r.status_code != 200:
         print("Results not found")
@@ -220,6 +235,57 @@ def getTransparencyNames(domain):
         if value['name_value'].find("*") == 0:
             continue
         results.append(value['name_value'].lower())
+
+    results = list(set(results))
+    results.sort()
+    return results
+
+
+def getCertDBNames(domain):
+    results = []
+    print("[CertDB] Checking [{domain}]".format(domain=domain))
+    r = requests.get(_certdb_endpoint.format(query=domain))
+    if r.status_code != 200:
+        print("Results not found")
+        return results
+    
+    data = json.loads('[{}]'.format(r.text.replace('}{', '},{')), strict=False)
+    for certs in data:
+        for cert in certs:
+            if "subject" in cert:
+                cn = cert["subject"]["CN"].lower()
+                if cn.find("*") > -1:
+                    cn = cn[2:]
+                results.append(cn)
+            if "extensions" in cert:
+                altnames = cert["extensions"]["subjectAltName"].split(",")
+                if altnames:
+                    if len(altnames) > 0:
+                        for b in altnames:
+                            aname = b.split(":")[1].lower()
+                            if aname.find("*") > -1:
+                                aname = aname[2:]
+                            results.append(aname)
+
+    results = list(set(results))
+    results.sort()
+    return results
+
+
+def getCertSpotterNames(domain):
+    results = []
+    print("[CertSpotter] Checking [{domain}]".format(domain=domain))
+    r = requests.get(_certspotter_endpoint.format(query=domain))
+    if r.status_code != 200:
+        print("Results not found")
+        return results
+    
+    data = json.loads(r.text, strict=False)
+    for certs in data:
+        for names in certs["dns_names"]:
+            if names.find("*") > -1:
+                names = names[2:]
+            results.append(names)
 
     results = list(set(results))
     results.sort()
@@ -237,32 +303,39 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--delay', type=int, help="Delay between quering online services", default=3)
     parser.add_argument('-T', '--threads', type=int, help="Number of concurrent threads", default=20)
     parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
-    parser.add_argument('-U', '--uid', type=str, help="Censys.io UID")
-    parser.add_argument('-S', '--secret', type=str, help="Censys.io Secret")
     args = parser.parse_args()
 
-    _censys_uid = args.uid
-    _censys_secret = args.secret
     _port = args.port
     _threads = args.threads
+    _domains = []
 
     if not args.domain and not args.domains and not args.iprange:
         print("Requires either domain, domain list or ip range")
         exit()
 
     if args.domain:
-        print("Checking transparency archive for potential hostnames")
-        _potential_hosts = getTransparencyNames(args.domain)
-        if _censys_uid and _censys_secret:
-            _potential_hosts = _potential_hosts + getCensysNames(args.domain)
-
+        _domains.append(args.domain)
     if args.domains:
         for domain in open(args.domains).read().split("\n"):
             if len(domain) > 3:
-                _potential_hosts = _potential_hosts + getTransparencyNames(domain)
-                if _censys_uid and _censys_secret:
-                    _potential_hosts = _potential_hosts + getCensysNames(domain)
-                sleep(args.delay)
+                _domains.append(domain)
+
+    if len(_domains) < 1 and not args.iprange:
+        print("We need some domains to work with.")
+        exit()
+        
+
+    for domain in _domains:
+        # Start with crt.sh
+        _potential_hosts = _potential_hosts + getTransparencyNames(domain)
+        # Next check CertDB
+        _potential_hosts = _potential_hosts + getCertDBNames(domain)
+        # Next check CertSpotter
+        _potential_hosts = _potential_hosts+ getCertSpotterNames(domain)
+        # Next, if API key is set for Censys, then do that
+        if api_keys._censys_uid and api_keys._censys_secret:
+            _potential_hosts = _potential_hosts + getCensysNames(domain)
+        sleep(args.delay)
 
     if args.iprange:
         _potential_hosts = getNamesFromIps(args.iprange)
