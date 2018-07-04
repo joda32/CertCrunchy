@@ -16,6 +16,16 @@ It just a silly python script that either retrieves SSL Certificate based data f
 currently https://crt.sh/, https://certdb.com/, https://sslmate.com/certspotter/ and https://censys.io or given a IP range it will attempt to extract host information from SSL Certificates.
 If you want to use Censys.io you need to register for a API key.
 
+## Demo
+![gif](https://i.imgur.com/fsZFflZ.gif)
+
+## How to install
+```
+git clone https://github.com/joda32/CertCrunchy.git
+cd CertCrunchy
+sudo pip3 install -r requirements.txt
+```
+
 ## How to use it?
 Very simply
 -d to get hostnames for specific domain
