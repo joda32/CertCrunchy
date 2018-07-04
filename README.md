@@ -21,9 +21,11 @@ If you want to use Censys.io you need to register for a API key.
 ![gif](https://i.imgur.com/fsZFflZ.gif)
 
 ## How to install
+```
 git clone https://github.com/joda32/CertCrunchy.git
 cd CertCrunchy
 sudo pip3 install -r requirements.txt
+```
 
 ## How to use it?
 Very simply
