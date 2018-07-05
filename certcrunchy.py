@@ -258,14 +258,15 @@ def getCertDBNames(domain):
                     cn = cn[2:]
                 results.append(cn)
             if "extensions" in cert:
-                altnames = cert["extensions"]["subjectAltName"].split(",")
-                if altnames:
-                    if len(altnames) > 0:
-                        for b in altnames:
-                            aname = b.split(":")[1].lower()
-                            if aname.find("*") > -1:
-                                aname = aname[2:]
-                            results.append(aname)
+                if "subjectAltName" in cert["extensions"]:
+                    altnames = cert["extensions"]["subjectAltName"].split(",")
+                    if altnames:
+                        if len(altnames) > 0:
+                            for b in altnames:
+                                aname = b.split(":")[1].lower()
+                                if aname.find("*") > -1:
+                                    aname = aname[2:]
+                                results.append(aname)
 
     results = list(set(results))
     results.sort()
