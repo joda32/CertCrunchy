@@ -35,6 +35,7 @@ _transparency_endpoint = "https://crt.sh/?q=%.{query}&output=json"
 _censys_endpoint = "https://www.censys.io/api/v1"
 _certdb_endpoint = "https://certdb.com/api?q={query}"
 _certspotter_endpoint = "https://certspotter.com/api/v0/certs?domain={query}"
+_vt_domainsearch_endpoint = "https://www.virustotal.com/vtapi/v2/domain/report"
 _potential_hosts = []
 _resolving_hosts = {}
 _port = 443
@@ -241,6 +242,24 @@ def getTransparencyNames(domain):
     return results
 
 
+def getDomainVTNames(domain):
+    results = []
+    print("[virustotal.com] Checking [{domain}]".format(domain=domain))
+    params = {"apikey": api_keys._virustotal, "domain": domain}
+    r = requests.get(_vt_domainsearch_endpoint, params=params)
+    if r.status_code != 200:
+        print("Results not found")
+        return results
+    data = json.loads('[{}]'.format(r.text.replace('}{', '},{')))
+    for items in data:
+        for subdomain in items["subdomains"]:
+            results.append(subdomain.strip().lower())
+
+    results = list(set(results))
+    results.sort()
+    return results
+
+
 def getCertDBNames(domain):
     results = []
     print("[CertDB] Checking [{domain}]".format(domain=domain))
@@ -336,6 +355,8 @@ if __name__ == "__main__":
         # Next, if API key is set for Censys, then do that
         if api_keys._censys_uid and api_keys._censys_secret:
             _potential_hosts = _potential_hosts + getCensysNames(domain)
+        if api_keys._virustotal:
+            _potential_hosts = _potential_hosts + getDomainVTNames(domain)
         sleep(args.delay)
 
     if args.iprange:
