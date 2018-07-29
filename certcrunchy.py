@@ -14,6 +14,7 @@ import re
 import queue
 import ipaddress
 import api_keys
+import socket
 from time import sleep
 from tempfile import mkstemp
 
@@ -36,10 +37,13 @@ _censys_endpoint = "https://www.censys.io/api/v1"
 _certdb_endpoint = "https://certdb.com/api?q={query}"
 _certspotter_endpoint = "https://certspotter.com/api/v0/certs?domain={query}"
 _vt_domainsearch_endpoint = "https://www.virustotal.com/vtapi/v2/domain/report"
+_vt_ipsearch_endpoint = "https://www.virustotal.com/vtapi/v2/ip-address/report"
+_riskiq_endpoint = "https://api.passivetotal.org"
 _potential_hosts = []
 _resolving_hosts = {}
 _port = 443
 _threads = 20
+_delay = 3
 
 
 def is_valid_hostname(hostname):
@@ -242,6 +246,27 @@ def getTransparencyNames(domain):
     return results
 
 
+def getPassiveTotalNames(domain):
+    results = []
+    auth = (api_keys._riskiq_user, api_keys._riskiq_key)
+    endpoint = "{}/{}".format(_riskiq_endpoint, "/v2/enrichment/subdomains")
+    data = {'query': domain}
+    try:
+        r = requests.get(endpoint, auth=auth, json=data)
+        if r.status_code != 200:
+            print("Results not found")
+            return results
+        result = r.json()
+        if result["subdomains"]:
+            for prefix in result["subdomains"]:
+                results.append("{}.{}".format(prefix, domain))
+    except Exception as ex:
+        print("Error [{}]".format(ex))
+    results = list(set(results))
+    results.sort()
+    return results
+    
+
 def getDomainVTNames(domain):
     results = []
     print("[virustotal.com] Checking [{domain}]".format(domain=domain))
@@ -254,6 +279,45 @@ def getDomainVTNames(domain):
     for items in data:
         for subdomain in items["subdomains"]:
             results.append(subdomain.strip().lower())
+
+    results = list(set(results))
+    results.sort()
+    return results
+
+
+def getIPVTNames(ip_range):
+    results = []
+    print("[virustotal.com] Checking [{ip_range}]".format(ip_range=ip_range))
+    for ip in ipaddress.ip_network(ip_range):
+        params = {"apikey": api_keys._virustotal, "ip": ip}
+        print("Checking [{}]".format(ip))
+        from pprint import pprint
+        r = requests.get(_vt_domainsearch_endpoint, params=params)
+        if r.status_code != 200:
+            pprint(r)
+            print("Results not found")
+            break
+        from pprint import pprint
+        data = json.loads(r.text)
+        if data["response_code"] == 1:
+            for subdomain in data["resolutions"]:
+                results.append(subdomain["hostname"].strip().lower())
+        sleep(15)
+
+    results = list(set(results))
+    results.sort()
+    return results
+
+
+def getIPReverseLookup(ip_range):
+    results = []
+    print("[PTR names] Checking [{ip_range}]".format(ip_range=ip_range))
+    for ip in ipaddress.ip_network(ip_range):
+        try:
+            (name, l_arpa, l_ip, )=socket.gethostbyaddr(str(ip))
+            results.append(name.strip().lower())
+        except socket.herror:
+            pass
 
     results = list(set(results))
     results.sort()
@@ -323,11 +387,13 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--delay', type=int, help="Delay between quering online services", default=3)
     parser.add_argument('-T', '--threads', type=int, help="Number of concurrent threads", default=20)
     parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
+    parser.add_argument('-V', '--virustotal', action="store_true", help="When using an IP range and VT api is set, query VT for IP #WARNING, it takes a long time", default=False)
     args = parser.parse_args()
 
     _port = args.port
     _threads = args.threads
     _domains = []
+    _delay = args.delay
 
     if not args.domain and not args.domains and not args.iprange:
         print("Requires either domain, domain list or ip range")
@@ -357,10 +423,15 @@ if __name__ == "__main__":
             _potential_hosts = _potential_hosts + getCensysNames(domain)
         if api_keys._virustotal:
             _potential_hosts = _potential_hosts + getDomainVTNames(domain)
-        sleep(args.delay)
+        if api_keys._riskiq_user and api_keys._riskiq_key:
+            _potential_hosts = _potential_hosts + getPassiveTotalNames(domain)
+        sleep(_delay)
 
     if args.iprange:
         _potential_hosts = getNamesFromIps(args.iprange)
+        _potential_hosts = _potential_hosts + getIPReverseLookup(args.iprange)
+        if api_keys._virustotal and args.virustotal:
+            _potential_hosts = getIPVTNames(args.iprange)
 
     print("Checking potential hostnames for DNS A records")
 
