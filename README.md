@@ -49,5 +49,7 @@ All API keys are stored in the api_keys.py file, below is a list of supported AP
 
 2. VirusTotal https://www.virustotal.com/en/documentation/public-api/
 
+3. PassiveTotal https://community.riskiq.com/registration
+
 ## Todo:
 1. Better documentation
