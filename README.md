@@ -47,5 +47,7 @@ All API keys are stored in the api_keys.py file, below is a list of supported AP
 
 1. Censys.oi https://censys.io
 
+2. VirusTotal https://www.virustotal.com/en/documentation/public-api/
+
 ## Todo:
 1. Better documentation
