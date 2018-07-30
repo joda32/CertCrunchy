@@ -248,6 +248,7 @@ def getTransparencyNames(domain):
 
 def getPassiveTotalNames(domain):
     results = []
+    print("[passivetotal.org] Checking [{domain}]".format(domain=domain))
     auth = (api_keys._riskiq_user, api_keys._riskiq_key)
     endpoint = "{}/{}".format(_riskiq_endpoint, "/v2/enrichment/subdomains")
     data = {'query': domain}
