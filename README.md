@@ -36,6 +36,8 @@ Very simply
 
 -T the thread count, makes stuff faster, but don't over do it
 
+-O to set the timeout on HTTP api requests in seconds (default is 3 seconds)
+
 -o Output file name
 
 -f Output format csv or json, csv is the default
