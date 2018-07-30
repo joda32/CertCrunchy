@@ -44,6 +44,7 @@ _resolving_hosts = {}
 _port = 443
 _threads = 20
 _delay = 3
+_timeout = 3
 
 
 def is_valid_hostname(hostname):
@@ -198,7 +199,7 @@ def getCensysNames(domain):
         while 1:
             #print("getting page {page}".format(page=page))
             data = QUERY.format(domain=domain, page=page)
-            res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(_censys_uid, _censys_secret))
+            res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(_censys_uid, _censys_secret), timeout=_timeout)
             if res.status_code != 200:
                 print("error occurred: {error}".format(res.json()["error"]))
                 break
@@ -230,7 +231,7 @@ def getCensysNames(domain):
 def getTransparencyNames(domain):
     results = []
     print("[crt.sh] Checking [{domain}]".format(domain=domain))
-    r = requests.get(_transparency_endpoint.format(query=domain))
+    r = requests.get(_transparency_endpoint.format(query=domain), timeout=_timeout)
     if r.status_code != 200:
         print("Results not found")
         return results
@@ -253,7 +254,7 @@ def getPassiveTotalNames(domain):
     endpoint = "{}/{}".format(_riskiq_endpoint, "/v2/enrichment/subdomains")
     data = {'query': domain}
     try:
-        r = requests.get(endpoint, auth=auth, json=data)
+        r = requests.get(endpoint, auth=auth, json=data, timeout=_timeout)
         if r.status_code != 200:
             print("Results not found")
             return results
@@ -272,7 +273,7 @@ def getDomainVTNames(domain):
     results = []
     print("[virustotal.com] Checking [{domain}]".format(domain=domain))
     params = {"apikey": api_keys._virustotal, "domain": domain}
-    r = requests.get(_vt_domainsearch_endpoint, params=params)
+    r = requests.get(_vt_domainsearch_endpoint, params=params, timeout=_timeout)
     if r.status_code != 200:
         print("Results not found")
         return results
@@ -293,7 +294,7 @@ def getIPVTNames(ip_range):
         params = {"apikey": api_keys._virustotal, "ip": ip}
         print("Checking [{}]".format(ip))
         from pprint import pprint
-        r = requests.get(_vt_domainsearch_endpoint, params=params)
+        r = requests.get(_vt_domainsearch_endpoint, params=params, timeout=_timeout)
         if r.status_code != 200:
             pprint(r)
             print("Results not found")
@@ -328,7 +329,7 @@ def getIPReverseLookup(ip_range):
 def getCertDBNames(domain):
     results = []
     print("[CertDB] Checking [{domain}]".format(domain=domain))
-    r = requests.get(_certdb_endpoint.format(query=domain))
+    r = requests.get(_certdb_endpoint.format(query=domain), timeout=_timeout)
     if r.status_code != 200:
         print("Results not found")
         return results
@@ -360,7 +361,7 @@ def getCertDBNames(domain):
 def getCertSpotterNames(domain):
     results = []
     print("[CertSpotter] Checking [{domain}]".format(domain=domain))
-    r = requests.get(_certspotter_endpoint.format(query=domain))
+    r = requests.get(_certspotter_endpoint.format(query=domain, timeout=_timeout))
     if r.status_code != 200:
         print("Results not found")
         return results
@@ -389,12 +390,14 @@ if __name__ == "__main__":
     parser.add_argument('-T', '--threads', type=int, help="Number of concurrent threads", default=20)
     parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
     parser.add_argument('-V', '--virustotal', action="store_true", help="When using an IP range and VT api is set, query VT for IP #WARNING, it takes a long time", default=False)
+    parser.add_argument('-O', '--request-timeout', type=int, help="The HTTP timeout for requesting data from APIs in secords", default=3)
     args = parser.parse_args()
 
     _port = args.port
     _threads = args.threads
     _domains = []
     _delay = args.delay
+    _timeout = args.request_timeout
 
     if not args.domain and not args.domains and not args.iprange:
         print("Requires either domain, domain list or ip range")
