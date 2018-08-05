@@ -199,7 +199,7 @@ def getCensysNames(domain):
         while 1:
             #print("getting page {page}".format(page=page))
             data = QUERY.format(domain=domain, page=page)
-            res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(_censys_uid, _censys_secret), timeout=_timeout)
+            res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(api_keys._censys_uid, api_keys._censys_secret), timeout=_timeout)
             if res.status_code != 200:
                 print("error occurred: {error}".format(res.json()["error"]))
                 break
@@ -390,7 +390,7 @@ if __name__ == "__main__":
     parser.add_argument('-T', '--threads', type=int, help="Number of concurrent threads", default=20)
     parser.add_argument('-p', '--port', type=int, help="Port to connect to for SSL cert", default=443)
     parser.add_argument('-V', '--virustotal', action="store_true", help="When using an IP range and VT api is set, query VT for IP #WARNING, it takes a long time", default=False)
-    parser.add_argument('-O', '--request-timeout', type=int, help="The HTTP timeout for requesting data from APIs in secords", default=3)
+    parser.add_argument('-O', '--request-timeout', type=int, help="The HTTP timeout for requesting data from APIs in secords", default=10)
     args = parser.parse_args()
 
     _port = args.port
