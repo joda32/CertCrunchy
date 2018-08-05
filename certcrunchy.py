@@ -417,18 +417,36 @@ if __name__ == "__main__":
 
     for domain in _domains:
         # Start with crt.sh
-        _potential_hosts = _potential_hosts + getTransparencyNames(domain)
+        try:
+            _potential_hosts = _potential_hosts + getTransparencyNames(domain)
+        except Exception as crtEx:
+            print("API [crt.sh] request failed [{}]".format(crtEx))
         # Next check CertDB
-        _potential_hosts = _potential_hosts + getCertDBNames(domain)
+        try:
+            _potential_hosts = _potential_hosts + getCertDBNames(domain)
+        except Exception as certDBEx:
+            print("API [CertDB] request failed [{}]".format(certDBEx))
         # Next check CertSpotter
-        _potential_hosts = _potential_hosts+ getCertSpotterNames(domain)
+        try:
+            _potential_hosts = _potential_hosts+ getCertSpotterNames(domain)
+        except Exception as certDBEx:
+            print("API [CertSpotter] request failed [{}]".format(certDBEx))
         # Next, if API key is set for Censys, then do that
         if api_keys._censys_uid and api_keys._censys_secret:
-            _potential_hosts = _potential_hosts + getCensysNames(domain)
+            try:
+                _potential_hosts = _potential_hosts + getCensysNames(domain)
+            except Exception as censysEx:
+                print("API [CenSys.io] request failed [{}]".format(censysEx))
         if api_keys._virustotal:
-            _potential_hosts = _potential_hosts + getDomainVTNames(domain)
+            try:
+                _potential_hosts = _potential_hosts + getDomainVTNames(domain)
+            except Exception as vtEx:
+                print("API [VirusTotal] request failed [{}]".format(vtEx))
         if api_keys._riskiq_user and api_keys._riskiq_key:
-            _potential_hosts = _potential_hosts + getPassiveTotalNames(domain)
+            try:
+                _potential_hosts = _potential_hosts + getPassiveTotalNames(domain)
+            except Exception as ptEx:
+                print("API [passivetotal.org] request failed [{}]".format(ptEx))
         sleep(_delay)
 
     if args.iprange:
