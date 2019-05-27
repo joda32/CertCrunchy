@@ -236,11 +236,11 @@ def getTransparencyNames(domain):
         print("Results not found")
         return results
 
-    data = json.loads('[{}]'.format(r.text.replace('}{', '},{')))
-    for (key, value) in enumerate(data):
-        if value['name_value'].find("*") == 0:
+    data = r.json()
+    for item in data:
+        if item['name_value'].find("*") == 0:
             continue
-        results.append(value['name_value'].lower())
+        results.append(item['name_value'].lower())
 
     results = list(set(results))
     results.sort()
