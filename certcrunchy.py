@@ -15,8 +15,11 @@ import queue
 import ipaddress
 import api_keys
 import socket
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from time import sleep
 from tempfile import mkstemp
+
 
 
 _banner = """\033[1;33;49m
@@ -199,7 +202,7 @@ def getCensysNames(domain):
         while 1:
             #print("getting page {page}".format(page=page))
             data = QUERY.format(domain=domain, page=page)
-            res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(api_keys._censys_uid, api_keys._censys_secret), timeout=_timeout)
+            res = requests.post(_censys_endpoint + "/search/certificates", data=data, auth=(api_keys._censys_uid, api_keys._censys_secret), timeout=_timeout, verify=False)
             if res.status_code != 200:
                 print("error occurred: {error}".format(res.json()["error"]))
                 break
@@ -231,9 +234,9 @@ def getCensysNames(domain):
 def getTransparencyNames(domain):
     results = []
     print("[crt.sh] Checking [{domain}]".format(domain=domain))
-    r = requests.get(_transparency_endpoint.format(query=domain), timeout=_timeout)
+    r = requests.get(_transparency_endpoint.format(query=domain), timeout=_timeout, verify=False)
     if r.status_code != 200:
-        print("Results not found")
+        print(f"Results not found [{r.status_code}]")
         return results
 
     data = r.json()
@@ -254,7 +257,7 @@ def getPassiveTotalNames(domain):
     endpoint = "{}/{}".format(_riskiq_endpoint, "/v2/enrichment/subdomains")
     data = {'query': domain}
     try:
-        r = requests.get(endpoint, auth=auth, json=data, timeout=_timeout)
+        r = requests.get(endpoint, auth=auth, json=data, timeout=_timeout, verify=False)
         if r.status_code != 200:
             print("Results not found")
             return results
@@ -273,7 +276,7 @@ def getDomainVTNames(domain):
     results = []
     print("[virustotal.com] Checking [{domain}]".format(domain=domain))
     params = {"apikey": api_keys._virustotal, "domain": domain}
-    r = requests.get(_vt_domainsearch_endpoint, params=params, timeout=_timeout)
+    r = requests.get(_vt_domainsearch_endpoint, params=params, timeout=_timeout, verify=False)
     if r.status_code != 200:
         print("Results not found")
         return results
@@ -294,7 +297,7 @@ def getIPVTNames(ip_range):
         params = {"apikey": api_keys._virustotal, "ip": ip}
         print("Checking [{}]".format(ip))
         from pprint import pprint
-        r = requests.get(_vt_domainsearch_endpoint, params=params, timeout=_timeout)
+        r = requests.get(_vt_domainsearch_endpoint, params=params, timeout=_timeout, verify=False)
         if r.status_code != 200:
             pprint(r)
             print("Results not found")
@@ -329,7 +332,7 @@ def getIPReverseLookup(ip_range):
 def getCertDBNames(domain):
     results = []
     print("[CertDB] Checking [{domain}]".format(domain=domain))
-    r = requests.get(_certdb_endpoint.format(query=domain), timeout=_timeout)
+    r = requests.get(_certdb_endpoint.format(query=domain), timeout=_timeout, verify=False)
     if r.status_code != 200:
         print("Results not found")
         return results
@@ -361,7 +364,7 @@ def getCertDBNames(domain):
 def getCertSpotterNames(domain):
     results = []
     print("[CertSpotter] Checking [{domain}]".format(domain=domain))
-    r = requests.get(_certspotter_endpoint.format(query=domain, timeout=_timeout))
+    r = requests.get(_certspotter_endpoint.format(query=domain, timeout=_timeout), verify=False)
     if r.status_code != 200:
         print("Results not found")
         return results
