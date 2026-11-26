@@ -1,7 +1,14 @@
-*.pyc
+# build output
+/certcrunchy
+/dist/
+*.exe
+
+# local config / results
+config.yaml
 *.log
 *.bak
-*_migration.py
 data/*
 .env
+# legacy v1 key file (never commit keys)
 api_keys.py
+__pycache__/
