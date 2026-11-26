@@ -1,0 +1,14 @@
+# CertCrunchy API keys.
+# Copy to ~/.config/certcrunchy/config.yaml (or pass -c path), or use env vars:
+#   CERTCRUNCHY_<NAME>_KEY, e.g. CERTCRUNCHY_VIRUSTOTAL_KEY, CERTCRUNCHY_CENSYS_ORG_KEY
+# Every key is optional; sources marked "required" are skipped without one.
+keys:
+  certspotter: ""   # optional - raises the keyless hourly quota   https://sslmate.com/ct_search_api/
+  ctlogs: ""        # optional - free key: 100 req/hour + deep paging  https://account.ctlogs.dev/
+  censys: ""        # required - Censys Platform personal access token  https://platform.censys.io/
+  censys-org: ""    # optional - Censys organization ID (paid orgs)
+  merklemap: ""     # required - paid API token                         https://www.merklemap.com/
+  virustotal: ""    # required - enables subdomains + the -V IP sweep   https://www.virustotal.com/
+  hackertarget: ""  # optional - lifts the 20/day keyless limit
+  otx: ""           # optional - recommended, keyless access is often 429 https://otx.alienvault.com/
+  urlscan: ""       # optional - deeper paging                          https://urlscan.io/
