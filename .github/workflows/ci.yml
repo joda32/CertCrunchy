@@ -1,0 +1,21 @@
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go run honnef.co/go/tools/cmd/staticcheck@latest ./...
+      - run: go test -race ./...
+      - run: CGO_ENABLED=0 go build -trimpath ./cmd/certcrunchy
